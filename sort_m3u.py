@@ -2,7 +2,7 @@
 import re
 
 # ====================== 配置 ======================
-input_file = "migu.txt"          # 你的原始文件
+input_file = "mig.m3u"          # 你的原始文件
 output_full = "migu.m3u"         # 完整排序文件
 output_cctv = "cctv.migu.m3u"    # 只包含央视 CCTV 频道的文件
 # =================================================
