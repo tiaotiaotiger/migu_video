@@ -64,26 +64,30 @@ def get_group_priority_and_key(extinf):
 
 
 def is_cctv_channel(extinf):
-    """判断是否为纯央视 CCTV 频道，支持排除列表"""
+    """只保留标准的央视 CCTV 数字频道 + 少量核心频道，排除美洲/欧洲等"""
     name_match = re.search(r',(.+?)$', extinf)
     name = name_match.group(1).strip() if name_match else ""
     
-    # ============ 需要排除的频道列表（可随意添加） ============
-    exclude_keywords = ["洲"]
+    # ==================== 排除列表 ====================
+    exclude_keywords = ["洲",]
     
-    if any(keyword in name for keyword in exclude_keywords):
+    if any(kw in name for kw in exclude_keywords):
         return False
-    # =========================================================
+    # ====================================================
     
-    # 保留条件
+    # ==================== 保留条件（严格版） ====================
+    # 只保留以下频道：
+    # 1. 包含 "央视" 
+    # 2. CCTV后面带数字的（如 CCTV1~CCTV17）
+    # 3. 你明确想要保留的非数字频道（目前注释掉了CGTN等）
     return (
-        "央视" in extinf 
-        or bool(re.search(r'CCTV\d+', name)) 
-        # or "CGTN" in name 
-        # or "老故事" in name 
-        # or "发现之旅" in name 
+        "央视" in extinf
+        or bool(re.search(r'CCTV\d+', name))      # CCTV1、CCTV2、...、CCTV17
+        # or "CGTN" in name                       # 需要CGTN时取消注释
+        # or "老故事" in name
+        # or "发现之旅" in name
         # or "中学生" in name
-    )
+    ))
 
 
 def main():
