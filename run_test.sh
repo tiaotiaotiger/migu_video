@@ -5,6 +5,7 @@ echo "==== 开始执行抓取逻辑: $(date -u) ===="
 
 # 1. 在主工作目录执行 Python 和下载 (对应原 steps 逻辑)
 python MIGU.py || true
+python sort_m3u.py || true
 
 # 2. 提交推送阶段 (完全复刻原 CommitAndPush 逻辑)
 REPO_NAME="${GITHUB_REPOSITORY#*/}"
@@ -16,7 +17,7 @@ git clone "https://${GITHUB_ACTOR}:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.g
 cd "temp_repo_dir" || exit 1 
 
 # 从上级目录移动文件到当前子目录
-[ -f "../migu.txt" ] && mv ../migu.txt ./migu.txt || true
+[ -f "../migu.m3u" ] && mv ../migu.m3u ./migu.m3u || true
 git add .
 if git diff --cached --quiet; then
   echo "No changes to commit."
