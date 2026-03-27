@@ -2,10 +2,9 @@
 import re
 
 # ====================== 配置 ======================
-input_file = "migu.txt"           # 你的原始 m3u 文件
-output_full = "migu.m3u"   # 完整排序文件（央视+卫视+其它）
-output_cctv = "cctv.migu.m3u"         # 只包含央视 CCTV 频道的文件
-
+input_file = "migu.txt"          # 你的原始文件
+output_full = "migu.m3u"         # 完整排序文件
+output_cctv = "cctv.migu.m3u"    # 只包含央视 CCTV 频道的文件
 # =================================================
 
 def parse_m3u(content):
@@ -34,7 +33,6 @@ def get_group_priority_and_key(extinf):
     name_match = re.search(r',(.+?)$', extinf)
     name = name_match.group(1).strip() if name_match else ""
 
-    # 分组判断
     if "央视" in extinf or any(c in name.upper() for c in ["CCTV", "CGTN"]):
         group = "央视"
         priority = 0
@@ -45,12 +43,12 @@ def get_group_priority_and_key(extinf):
         group = "其它"
         priority = 2
 
-    # 组内排序键（仅央视需要精细排序）
+    # 组内排序键
     if group == "央视":
         num_match = re.search(r'CCTV(\d+)', name)
         if num_match:
             num = int(num_match.group(1))
-            sort_key = (0, num, name)          # CCTV数字排序
+            sort_key = (0, num, name)
         elif "CGTN" in name:
             sort_key = (1, 0, name)
         elif any(x in name for x in ["欧洲", "美洲"]):
@@ -64,37 +62,34 @@ def get_group_priority_and_key(extinf):
 
 
 def is_cctv_channel(extinf):
-    """只保留标准的央视 CCTV 数字频道 + 少量核心频道，排除美洲/欧洲等"""
+    """严格只保留 CCTV1 ~ CCTV17"""
     name_match = re.search(r',(.+?)$', extinf)
     name = name_match.group(1).strip() if name_match else ""
     
-    # ==================== 排除列表 ====================
-    exclude_keywords = ["洲",]
+    exclude_keywords = ["美洲", "欧洲", "CGTN", "老故事", "发现之旅", "中学生"]
     
     if any(kw in name for kw in exclude_keywords):
         return False
-    # ====================================================
     
-    # ==================== 保留条件（严格版） ====================
-    # 只保留以下频道：
-    # 1. 包含 "央视" 
-    # 2. CCTV后面带数字的（如 CCTV1~CCTV17）
-    # 3. 你明确想要保留的非数字频道（目前注释掉了CGTN等）
-    return (
-        "央视" in extinf
-        or bool(re.search(r'CCTV\d+', name))      # CCTV1、CCTV2、...、CCTV17
-        # or "CGTN" in name                       # 需要CGTN时取消注释
-        # or "老故事" in name
-        # or "发现之旅" in name
-        # or "中学生" in name
-    )
+    # 只保留带数字的 CCTV 频道
+    return bool(re.search(r'CCTV\d+', name))
+
+
+def update_group_title(extinf, new_group):
+    """修改 EXTINF 行中的 group-title 为新分组"""
+    # 先移除原来的 group-title
+    extinf = re.sub(r'group-title="[^"]*"', '', extinf)
+    # 添加新的 group-title
+    if not extinf.endswith(','):
+        extinf += ','
+    extinf = re.sub(r',$', f',group-title="{new_group}"', extinf)
+    return extinf.strip()
 
 
 def main():
     with open(input_file, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 提取头部
     header_match = re.match(r'(#EXTM3U.*?)(\n#EXTINF:|$)', content, re.DOTALL | re.IGNORECASE)
     header = header_match.group(1).strip() if header_match else "#EXTM3U"
 
@@ -111,7 +106,7 @@ def main():
             seen[key] = True
             unique_channels.append((extinf, url))
 
-    # ==================== 生成完整排序文件 ====================
+    # ==================== 生成完整排序文件（修改 group-title） ====================
     sorted_channels = sorted(unique_channels, key=lambda x: get_group_priority_and_key(x[0])[0])
 
     with open(output_full, "w", encoding="utf-8") as f:
@@ -122,27 +117,30 @@ def main():
             if group != current_group:
                 f.write(f"# ================================== {group} ==================================\n\n")
                 current_group = group
-            f.write(extinf + "\n")
+            
+           
+            new_extinf = update_group_title(extinf, group)
+            f.write(new_extinf + "\n")
             f.write(url + "\n\n")
 
     # ==================== 生成只包含央视 CCTV 的文件 ====================
     cctv_channels = [ch for ch in unique_channels if is_cctv_channel(ch[0])]
-    # 对央视频道进行排序
-    cctv_sorted = sorted(cctv_channels, key=lambda x: get_group_priority_and_key(x[0])[0][1:])  # 只用组内键排序
+    cctv_sorted = sorted(cctv_channels, key=lambda x: get_group_priority_and_key(x[0])[0][1:])
 
     with open(output_cctv, "w", encoding="utf-8") as f:
         f.write(header + "\n\n")
         f.write("# ================================== 央视 CCTV 频道 ==================================\n\n")
         for extinf, url in cctv_sorted:
-            f.write(extinf + "\n")
+            new_extinf = update_group_title(extinf, "央视")   # 统一改成“央视”
+            f.write(new_extinf + "\n")
             f.write(url + "\n\n")
 
     print(f"✅ 处理完成！")
-    print(f"   输入频道数：{len(channels)}")
-    print(f"   去重后频道数：{len(unique_channels)}")
-    print(f"   央视 CCTV 频道数：{len(cctv_channels)}")
-    print(f"   输出文件1（完整版）：{output_full}")
-    print(f"   输出文件2（仅央视）：{output_cctv}")
+    print(f" 输入频道数：{len(channels)}")
+    print(f" 去重后频道数：{len(unique_channels)}")
+    print(f" 央视 CCTV 频道数：{len(cctv_channels)}")
+    print(f" 输出文件1（完整版）：{output_full}")
+    print(f" 输出文件2（仅央视）：{output_cctv}")
 
 
 if __name__ == "__main__":
