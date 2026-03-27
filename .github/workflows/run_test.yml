@@ -2,7 +2,7 @@ name: test rruuns
 
 on: 
   schedule: 
-    - cron: '36 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
   repository_dispatch: 
     types: [tvcron]
