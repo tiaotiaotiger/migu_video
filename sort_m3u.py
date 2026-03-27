@@ -87,7 +87,7 @@ def is_cctv_channel(extinf):
         # or "老故事" in name
         # or "发现之旅" in name
         # or "中学生" in name
-    ))
+    )
 
 
 def main():
