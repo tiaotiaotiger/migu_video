@@ -76,15 +76,21 @@ def is_cctv_channel(extinf):
 
 
 def update_group_title(extinf, new_group):
-    """修改 EXTINF 行中的 group-title 为新分组"""
-    # 先移除原来的 group-title
-    extinf = re.sub(r'group-title="[^"]*"', '', extinf)
-    # 添加新的 group-title
-    if not extinf.endswith(','):
-        extinf += ','
-    extinf = re.sub(r',$', f',group-title="{new_group}"', extinf)
+    """正确地在逗号前插入 group-title，保持标准 m3u 格式"""
+    # 先移除原来可能存在的 group-title
+    extinf = re.sub(r'\s*group-title="[^"]*"', '', extinf)
+    
+    # 找到最后一个逗号的位置（频道名称之前）
+    if ',' in extinf:
+        # 把 group-title 插入到最后一个逗号之前
+        parts = extinf.rsplit(',', 1)
+        if len(parts) == 2:
+            extinf = f'{parts[0]},group-title="{new_group}",{parts[1].strip()}'
+    else:
+        # 兜底情况
+        extinf = f'{extinf},group-title="{new_group}"'
+    
     return extinf.strip()
-
 
 def main():
     with open(input_file, "r", encoding="utf-8") as f:
