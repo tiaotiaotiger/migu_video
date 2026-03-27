@@ -18,6 +18,7 @@ cd "temp_repo_dir" || exit 1
 
 # 从上级目录移动文件到当前子目录
 [ -f "../migu.m3u" ] && mv ../migu.m3u ./migu.m3u || true
+[ -f "../cctv.migu.m3u" ] && mv ../cctv.migu.m3u ./cctv.migu.m3u || true
 git add .
 if git diff --cached --quiet; then
   echo "No changes to commit."
