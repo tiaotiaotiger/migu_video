@@ -84,7 +84,8 @@ def update_group_title(extinf, new_group):
 
 
 def simplify_cctv_name(extinf):
-    """只在央视专用文件中简化频道名：保留 CCTV + 数字 + + 号"""
+    """在央视专用文件中，同时简化 tvg-id、tvg-name 和显示名称"""
+    # 提取原始名称
     name_match = re.search(r',(.+?)$', extinf)
     if not name_match:
         return extinf
@@ -93,10 +94,17 @@ def simplify_cctv_name(extinf):
     
     # 提取 CCTV + 数字 + 可选的 +
     match = re.search(r'(CCTV\d+\+?)', old_name)
-    if match:
-        new_name = match.group(1)
-        # 替换原来的名称
-        extinf = extinf.replace(f',{old_name}', f',{new_name}')
+    if not match:
+        return extinf
+    
+    new_name = match.group(1)   # 例如: CCTV5 或 CCTV5+
+    
+    # 同时修改 tvg-id、tvg-name 和显示名称
+    extinf = re.sub(r'tvg-id="[^"]*"', f'tvg-id="{new_name}"', extinf)
+    extinf = re.sub(r'tvg-name="[^"]*"', f'tvg-name="{new_name}"', extinf)
+    
+    # 修改显示名称（逗号后面的部分）
+    extinf = re.sub(r',.+?$', f',{new_name}', extinf)
     
     return extinf
 
