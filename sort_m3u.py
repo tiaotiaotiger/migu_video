@@ -3,8 +3,8 @@ import re
 
 # ====================== 配置 ======================
 input_file = "mig.m3u"          # 你的原始文件
-output_full = "migu.m3u"         # 完整排序文件
-output_cctv = "cctv.migu.m3u"    # 只包含央视 CCTV 频道的文件
+output_full = "migu.m3u"         # 完整排序文件（频道名不动）
+output_cctv = "cctv.migu.m3u"    # 只包含央视的文件（频道名简化）
 # =================================================
 
 def parse_m3u(content):
@@ -29,7 +29,6 @@ def parse_m3u(content):
 
 
 def get_group_priority_and_key(extinf):
-    """返回 (分组优先级, 组内排序键), group"""
     name_match = re.search(r',(.+?)$', extinf)
     name = name_match.group(1).strip() if name_match else ""
 
@@ -43,7 +42,6 @@ def get_group_priority_and_key(extinf):
         group = "其它"
         priority = 2
 
-    # 组内排序键
     if group == "央视":
         num_match = re.search(r'CCTV(\d+)', name)
         if num_match:
@@ -76,21 +74,32 @@ def is_cctv_channel(extinf):
 
 
 def update_group_title(extinf, new_group):
-    """正确地在逗号前插入 group-title，保持标准 m3u 格式"""
-    # 先移除原来可能存在的 group-title
+    """正确插入 group-title"""
     extinf = re.sub(r'\s*group-title="[^"]*"', '', extinf)
-    
-    # 找到最后一个逗号的位置（频道名称之前）
     if ',' in extinf:
-        # 把 group-title 插入到最后一个逗号之前
         parts = extinf.rsplit(',', 1)
         if len(parts) == 2:
-            extinf = f'{parts[0]},group-title="{new_group}",{parts[1].strip()}'
-    else:
-        # 兜底情况
-        extinf = f'{extinf},group-title="{new_group}"'
-    
+            extinf = f'{parts[0].strip()},group-title="{new_group}",{parts[1].strip()}'
     return extinf.strip()
+
+
+def simplify_cctv_name(extinf):
+    """只在央视专用文件中简化频道名：保留 CCTV + 数字 + + 号"""
+    name_match = re.search(r',(.+?)$', extinf)
+    if not name_match:
+        return extinf
+    
+    old_name = name_match.group(1).strip()
+    
+    # 提取 CCTV + 数字 + 可选的 +
+    match = re.search(r'(CCTV\d+\+?)', old_name)
+    if match:
+        new_name = match.group(1)
+        # 替换原来的名称
+        extinf = extinf.replace(f',{old_name}', f',{new_name}')
+    
+    return extinf
+
 
 def main():
     with open(input_file, "r", encoding="utf-8") as f:
@@ -112,7 +121,7 @@ def main():
             seen[key] = True
             unique_channels.append((extinf, url))
 
-    # ==================== 生成完整排序文件（修改 group-title） ====================
+    # ==================== 生成完整版（频道名不动） ====================
     sorted_channels = sorted(unique_channels, key=lambda x: get_group_priority_and_key(x[0])[0])
 
     with open(output_full, "w", encoding="utf-8") as f:
@@ -123,13 +132,11 @@ def main():
             if group != current_group:
                 f.write(f"# ================================== {group} ==================================\n\n")
                 current_group = group
-            
-           
             new_extinf = update_group_title(extinf, group)
             f.write(new_extinf + "\n")
             f.write(url + "\n\n")
 
-    # ==================== 生成只包含央视 CCTV 的文件 ====================
+    # ==================== 生成只包含央视的文件（简化频道名） ====================
     cctv_channels = [ch for ch in unique_channels if is_cctv_channel(ch[0])]
     cctv_sorted = sorted(cctv_channels, key=lambda x: get_group_priority_and_key(x[0])[0][1:])
 
@@ -137,7 +144,8 @@ def main():
         f.write(header + "\n\n")
         f.write("# ================================== 央视 CCTV 频道 ==================================\n\n")
         for extinf, url in cctv_sorted:
-            new_extinf = update_group_title(extinf, "央视")   # 统一改成“央视”
+            new_extinf = update_group_title(extinf, "央视")
+            new_extinf = simplify_cctv_name(new_extinf)   # ← 关键：简化名称
             f.write(new_extinf + "\n")
             f.write(url + "\n\n")
 
@@ -146,7 +154,7 @@ def main():
     print(f" 去重后频道数：{len(unique_channels)}")
     print(f" 央视 CCTV 频道数：{len(cctv_channels)}")
     print(f" 输出文件1（完整版）：{output_full}")
-    print(f" 输出文件2（仅央视）：{output_cctv}")
+    print(f" 输出文件2（仅央视，已简化名称）：{output_cctv}")
 
 
 if __name__ == "__main__":
