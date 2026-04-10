@@ -6,7 +6,12 @@ on:
   workflow_dispatch:
   repository_dispatch: 
     types: [tvcron]
-
+    
+# 防止并发：如果新任务触发，取消掉正在运行的旧任务
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+  
 jobs:
   main:
     name: Fetch And Modify
