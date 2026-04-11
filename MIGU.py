@@ -52,6 +52,7 @@ LIVE = {
     '央视': '1ff892f2b5ab4a79be6e25b69d2f5d05',
     '卫视': '0847b3f6c08a4ca28f85ba5701268424'
 }
+PID_NOT=['608807419', '608807416', '609006446', '609006476', '609154345', '609006450', '884121956', '708869532']
 
 path = 'mig.m3u'
 appVersion = "2600034600"
@@ -320,6 +321,9 @@ def update(live, url):
     response = requests.get(url, headers=headers).json()
     dataList = response["body"]["dataList"]
     for flag, data in enumerate(dataList):
+        if data["pID"] in PID_NOT:
+            continue
+            
         All_Live.append("")
         pool.submit(append_All_Live, live, FLAG + flag, data)
     pool.shutdown()
