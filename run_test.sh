@@ -23,7 +23,7 @@ git add .
 if git diff --cached --quiet; then
   echo "No changes to commit."
 else
-  git commit -m "Update: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S') CST (Asia/Shanghai, UTC+8)"
+  git commit -m "Update: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S')"
   git push origin main
 fi
 
