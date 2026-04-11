@@ -30,8 +30,8 @@ headers = {
     "terminalId": "h5"
 }
 
+"""
 lives = ['央视', '卫视', '地方', '体育', '影视', '少儿', '新闻', '教育', '纪实']
-
 LIVE = {
     '热门': 'e7716fea6aa1483c80cfc10b7795fcb8',
     '体育': '7538163cdac044398cb292ecf75db4e0',
@@ -45,6 +45,12 @@ LIVE = {
     '综艺': '192a12edfef04b5eb616b878f031f32f',
     '少儿': 'fc2f5b8fd7db43ff88c4243e731ecede',
     '纪实': 'e1165138bdaa44b9a3138d74af6c6673'
+}
+"""
+lives = ['央视', '卫视']
+LIVE = {
+    '央视': '1ff892f2b5ab4a79be6e25b69d2f5d05',
+    '卫视': '0847b3f6c08a4ca28f85ba5701268424'
 }
 
 path = 'mig.m3u'
