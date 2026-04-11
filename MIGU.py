@@ -57,7 +57,6 @@ PID_NOT=['608807419', '608807416', '609006446', '609006476', '609154345', '60900
 path = 'mig.m3u'
 appVersion = "2600034600"
 All_Live = []
-FLAG = 0
 
 
 def format_date_ymd():
@@ -302,13 +301,19 @@ def getddCalcu720p(url, pID):
 def append_All_Live(live, flag, data):
     try:
         respData = get_content(data["pID"])
-        raw_url = respData["body"]["urlInfo"]["url"]
+        url_info = (respData.get("body") or {}).get("urlInfo") or {}
+        raw_url = url_info.get("url")
+        if not raw_url:
+            raise ValueError("接口未返回播放地址 url")
         real_pid = respData.get("body", {}).get("content", {}).get("contId", data["pID"])
-        
-        playurl = getddCalcu720p(raw_url, real_pid)
-        rate = respData["body"]["urlInfo"].get("rateType", "未知")
 
-        content = f'#EXTINF:-1 tvg-id="{data["name"]}" tvg-name="{data["name"]}" tvg-logo="{data["pics"]["highResolutionH"]}" group-title="{live}",{data["name"]}\n{playurl}\n'
+        playurl = getddCalcu720p(raw_url, real_pid)
+        rate = url_info.get("rateType", "未知")
+
+        pics = data.get("pics") or {}
+        logo = pics.get("highResolutionH", "")
+
+        content = f'#EXTINF:-1 tvg-id="{data["name"]}" tvg-name="{data["name"]}" tvg-logo="{logo}" group-title="{live}",{data["name"]}\n{playurl}\n'
         All_Live[flag] = content
         print(f'频道 [{data["name"]}] rateType={rate} → 更新成功')
     except Exception as e:
@@ -316,23 +321,23 @@ def append_All_Live(live, flag, data):
 
 
 def update(live, url):
-    global FLAG, All_Live
+    global All_Live
     pool = ThreadPoolExecutor(thread_mum)
     response = requests.get(url, headers=headers).json()
     dataList = response["body"]["dataList"]
-    for flag, data in enumerate(dataList):
+    for data in dataList:
         if data["pID"] in PID_NOT:
             continue
-            
+        # 必须用当前列表长度作为下标：跳过 PID_NOT 时 enumerate 的下标会与 append 次数不一致
+        idx = len(All_Live)
         All_Live.append("")
-        pool.submit(append_All_Live, live, FLAG + flag, data)
+        pool.submit(append_All_Live, live, idx, data)
     pool.shutdown()
-    FLAG += len(dataList)
 
 
 def main():
     writefile(path,
-              '#EXTM3U x-tvg-url="https://cdn.jsdelivr.net/gh/develop202/migu_video/playback.xml,https://ghfast.top/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://hk.gh-proxy.org/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://develop202.github.io/migu_video/playback.xml,https://raw.githubusercontents.com/develop202/migu_video/refs/heads/main/playback.xml" catchup="append" catchup-source="&playbackbegin=\${(b)yyyyMMddHHmmss}&playbackend=\${(e)yyyyMMddHHmmss}"\n')
+              r'#EXTM3U x-tvg-url="https://cdn.jsdelivr.net/gh/develop202/migu_video/playback.xml,https://ghfast.top/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://hk.gh-proxy.org/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://develop202.github.io/migu_video/playback.xml,https://raw.githubusercontents.com/develop202/migu_video/refs/heads/main/playback.xml" catchup="append" catchup-source="&playbackbegin=${(b)yyyyMMddHHmmss}&playbackend=${(e)yyyyMMddHHmmss}"' + "\n")
     
     for live in lives:
         print(f"\n分类 ----- [{live}] ----- 开始更新...")
