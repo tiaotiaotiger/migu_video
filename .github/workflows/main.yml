@@ -1,4 +1,4 @@
-name: test rruuns
+name: workflow-task
 
 on: 
   schedule: 
