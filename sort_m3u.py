@@ -3,7 +3,7 @@ import re
 
 # ====================== 配置 ======================
 input_file = "mig.m3u"          # 你的原始文件
-output_full = "migu.m3u"         # 完整排序文件（频道名不动）
+output_full = "migu.m3u"         # 完整版：保持 mig.m3u 中频道顺序，只按规则重写 group-title
 output_cctv = "cctv.migu.m3u"    # 只包含央视的文件（频道名简化）
 # =================================================
 
@@ -130,12 +130,11 @@ def main():
             unique_channels.append((extinf, url))
 
     # ==================== 生成完整版（频道名不动） ====================
-    sorted_channels = sorted(unique_channels, key=lambda x: get_group_priority_and_key(x[0])[0])
-
+    # 顺序与去重后的 mig.m3u 一致，不按 priority/sort_key 重排；分组仍用 get_group_priority_and_key
     with open(output_full, "w", encoding="utf-8") as f:
         f.write(header + "\n\n")
         current_group = None
-        for extinf, url in sorted_channels:
+        for extinf, url in unique_channels:
             _, group = get_group_priority_and_key(extinf)
             if group != current_group:
                 f.write(f"# ================================== {group} ==================================\n\n")
@@ -145,13 +144,13 @@ def main():
             f.write(url + "\n\n")
 
     # ==================== 生成只包含央视的文件（简化频道名） ====================
-    cctv_channels = [ch for ch in unique_channels if is_cctv_channel(ch[0])]
-    cctv_sorted = sorted(cctv_channels, key=lambda x: get_group_priority_and_key(x[0])[0][1:])
+    # 与 mig.m3u 中首次出现的顺序一致（仅 CCTV1~17），不做 CCTV 序号重排
+    cctv_ordered = [(e, u) for e, u in unique_channels if is_cctv_channel(e)]
 
     with open(output_cctv, "w", encoding="utf-8") as f:
         f.write(header + "\n\n")
         f.write("# ================================== 央视 CCTV 频道 ==================================\n\n")
-        for extinf, url in cctv_sorted:
+        for extinf, url in cctv_ordered:
             new_extinf = update_group_title(extinf, "央视")
             new_extinf = simplify_cctv_name(new_extinf)   # ← 关键：简化名称
             f.write(new_extinf + "\n")
@@ -160,7 +159,7 @@ def main():
     print(f"✅ 处理完成！")
     print(f" 输入频道数：{len(channels)}")
     print(f" 去重后频道数：{len(unique_channels)}")
-    print(f" 央视 CCTV 频道数：{len(cctv_channels)}")
+    print(f" 央视 CCTV 频道数：{len(cctv_ordered)}")
     print(f" 输出文件1（完整版）：{output_full}")
     print(f" 输出文件2（仅央视，已简化名称）：{output_cctv}")
 
