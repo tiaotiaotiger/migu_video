@@ -6,7 +6,7 @@ import hashlib
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-thread_mum = 10  # 线程数
+thread_mum = 1  # 线程数10
 
 headers = {
     "Accept": "application/json, text/plain, */*",
