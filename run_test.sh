@@ -1,7 +1,7 @@
 #!/bin/bash
 # 核心业务逻辑脚本 - 保持原始逻辑版
 
-echo "==== 开始执行抓取逻辑: $(date -u) ===="
+echo "==== 开始执行抓取逻辑: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S %Z (Asia/Shanghai)') ===="
 
 # 1. 在主工作目录执行 Python 和下载 (对应原 steps 逻辑)
 python MIGU.py || true
@@ -23,7 +23,7 @@ git add .
 if git diff --cached --quiet; then
   echo "No changes to commit."
 else
-  git commit -m "Update: $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+  git commit -m "Update: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S') CST (Asia/Shanghai, UTC+8)"
   git push origin main
 fi
 
