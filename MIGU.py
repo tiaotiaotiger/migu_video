@@ -7,7 +7,7 @@ import hashlib
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-thread_mum = 1  # 并发线程数（1 为顺序执行，减轻对代理/咪咕的突发压力）
+thread_mum = 1  # 并发线程数（1 为顺序执行，减轻对代理/MG的突发压力）
 
 headers = {
     "Accept": "application/json, text/plain, */*",
@@ -235,6 +235,30 @@ def _http_debug_max_chars():
         return 12000
 
 
+class PlayurlDenied(Exception):
+    """MG返回版权/地域等策略码，无播放地址；换 rateType 重试无效。"""
+
+
+def _is_playurl_denied_by_policy(resp_data):
+    """是否为MG明确拒绝取流（非网络/解析错误）。"""
+    if not isinstance(resp_data, dict):
+        return False
+    if resp_data.get("rid") == "COPYRIGHT_SHIELD_INVALID":
+        return True
+    if str(resp_data.get("code", "")) == "403" and resp_data.get("playCode") == "403001006":
+        return True
+    return False
+
+
+def _format_playurl_denial(resp_data):
+    msg = (resp_data or {}).get("message") or "不可获取播放地址"
+    rid = (resp_data or {}).get("rid", "")
+    return (
+        f"{msg} [rid={rid}] "
+        f"（MG版权/地域策略；海外或机房出口 IP 常见，与清晰度 rateType 无关，换档重试无效。）"
+    )
+
+
 def _emit_http_debug_block(heading, text):
     if not _http_debug_enabled():
         return
@@ -251,7 +275,7 @@ def _emit_http_debug_block(heading, text):
 
 def get_content(pid, rate_type=None, http_debug_label=None):
     """
-    请求咪咕 playurl。rate_type 为 None 时：广东卫视默认 2，其余默认 3。
+    请求MG playurl。rate_type 为 None 时：广东卫视默认 2，其余默认 3。
     传入具体档位则强制使用该 rateType（用于失败后的清晰度回退）。
     """
     _headers = {
@@ -361,7 +385,7 @@ def get_content(pid, rate_type=None, http_debug_label=None):
         tag = http_debug_label or pid
         req_lines = [
             f"频道标识: {tag}  pID={pid}  rateType={rateType}",
-            f"咪咕 playurl: {URL}",
+            f"MG playurl: {URL}",
             f"经 Apipost 代理: POST {proxy_url}",
             f"Apipost 请求体 JSON 长度: {len(body_str)} 字节",
         ]
@@ -401,6 +425,13 @@ def get_content_with_fallback(pid, channel_name=""):
                         tag = channel_name or pid
                         print(f"[回退/重试] 频道 [{tag}] rateType={rt} 第{attempt + 1}次 → 拿到播放地址")
                     return resp_data
+                if _is_playurl_denied_by_policy(resp_data):
+                    tag = channel_name or pid
+                    print(f"--- playurl 策略拒绝 频道 [{tag}] pID={pid}（不再换 rateType 重试）---")
+                    print(json.dumps(last_resp, ensure_ascii=False, indent=2))
+                    raise PlayurlDenied(_format_playurl_denial(resp_data))
+            except PlayurlDenied:
+                raise
             except Exception as e:
                 last_err = e
                 tag = channel_name or pid
