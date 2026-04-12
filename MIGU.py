@@ -1,3 +1,4 @@
+import os
 import requests
 import json
 import time
@@ -6,7 +7,7 @@ import hashlib
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
-thread_mum = 1  # 线程数10
+thread_mum = 1  # 并发线程数（1 为顺序执行，减轻对代理/咪咕的突发压力）
 
 headers = {
     "Accept": "application/json, text/plain, */*",
@@ -58,6 +59,132 @@ path = 'mig.m3u'
 appVersion = "2600034600"
 All_Live = []
 
+# ---------- HTTP：Session 复用连接（program-sc + Apipost）----------
+_http_session = None
+
+
+def _get_http_session():
+    global _http_session
+    if _http_session is None:
+        _http_session = requests.Session()
+    # requests.Session 非线程安全；当前 thread_mum=1 无并发写 Session。若增大线程数请改用每线程 Session 或加锁。
+    return _http_session
+
+
+# ---------- Apipost 代理请求体：静态骨架只建一份，每次只换 header/query/url ----------
+_PROJECT_REQUEST_STATIC_TAIL = {
+    "body": {"parameter": []},
+    "cookie": {"parameter": []},
+    "auth": {"type": "noauth"},
+    "pre_tasks": [],
+    "post_tasks": [],
+}
+
+_COLLECTION_REQUEST_STATIC_TAIL = {
+    "auth": {"type": "inherit"},
+    "body": {
+        "mode": "None",
+        "parameter": [],
+        "raw": "",
+        "raw_parameter": [],
+        "raw_schema": {"type": "object"},
+        "binary": None,
+    },
+    "pre_tasks": [],
+    "post_tasks": [],
+    "cookie": {"parameter": [], "cookie_encode": 1},
+    "restful": {"parameter": []},
+    "tabs_default_active_key": "query",
+}
+
+_COLLECTION_ITEM_META = {
+    "target_id": "3c5fd6a9786002",
+    "target_type": "api",
+    "parent_id": "0",
+    "name": "MIGU",
+    "parents": [],
+    "method": "GET",
+    "protocol": "http/1.1",
+    "pre_url": "",
+}
+
+_STATIC_OPTION_ENV = {
+    "env_id": "1",
+    "env_name": "默认环境",
+    "env_pre_url": "",
+    "env_pre_urls": {
+        "1": {"server_id": "1", "name": "默认服务", "sort": 1000, "uri": ""},
+        "default": {"server_id": "1", "name": "默认服务", "sort": 1000, "uri": ""},
+    },
+    "environment": {},
+}
+
+_STATIC_OPTION_COOKIES = {"switch": 1, "data": []}
+
+_STATIC_OPTION_SYSTEM_CONFIGS = {
+    "send_timeout": 0,
+    "auto_redirect": -1,
+    "max_redirect_time": 5,
+    "auto_gen_mock_url": -1,
+    "request_param_auto_json": -1,
+    "proxy": {
+        "type": 2,
+        "envfirst": 1,
+        "bypass": [],
+        "protocols": ["http"],
+        "auth": {"authenticate": -1, "host": "", "username": "", "password": ""},
+    },
+    "ca_cert": {"open": -1, "path": "", "base64": ""},
+    "client_cert": {},
+}
+
+_STATIC_CUSTOM_FUNCTIONS = {}
+
+_STATIC_TEST_EVENTS = [
+    {
+        "type": "api",
+        "data": {
+            "target_id": "3c5fd6a9786002",
+            "project_id": "57a21612a051000",
+            "parent_id": "0",
+            "target_type": "api",
+        },
+    }
+]
+
+
+def _build_apipost_body(header_parameter, query_parameter, url):
+    project_request = {
+        "header": {"parameter": header_parameter},
+        "query": {"parameter": query_parameter},
+        **_PROJECT_REQUEST_STATIC_TAIL,
+    }
+    collection_request = {
+        "header": {"parameter": header_parameter},
+        "query": {"parameter": query_parameter, "query_add_equal": 1},
+        **_COLLECTION_REQUEST_STATIC_TAIL,
+    }
+    collection_item = {
+        **_COLLECTION_ITEM_META,
+        "request": collection_request,
+        "url": url,
+    }
+    return {
+        "option": {
+            "scene": "http_request",
+            "lang": "zh-cn",
+            "globals": {},
+            "project": {"request": project_request},
+            "env": _STATIC_OPTION_ENV,
+            "cookies": _STATIC_OPTION_COOKIES,
+            "system_configs": _STATIC_OPTION_SYSTEM_CONFIGS,
+            "custom_functions": _STATIC_CUSTOM_FUNCTIONS,
+            "collection": [collection_item],
+            "database_configs": {},
+        },
+        "test_events": _STATIC_TEST_EVENTS,
+    }
+
 
 def format_date_ymd():
     current_date = datetime.now()
@@ -66,11 +193,6 @@ def format_date_ymd():
 
 def writefile(path, content):
     with open(path, 'w', encoding='utf-8') as f:
-        f.write(content)
-
-
-def appendfile(path, content):
-    with open(path, 'a+', encoding='utf-8') as f:
         f.write(content)
 
 
@@ -94,7 +216,44 @@ def getSaltAndSign(pid):
     }
 
 
-def get_content(pid):
+def _play_url_from_response(resp_data):
+    """从 playurl 响应中取出 url 与 urlInfo。"""
+    url_info = (resp_data.get("body") or {}).get("urlInfo") or {}
+    return url_info.get("url"), url_info
+
+
+def _http_debug_enabled():
+    """环境变量 MIGU_DEBUG_HTTP=1/true/yes/on 时打印每个频道的请求与解析后的响应。"""
+    return os.environ.get("MIGU_DEBUG_HTTP", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _http_debug_max_chars():
+    """响应/大段文本最大打印字符数；MIGU_DEBUG_HTTP_MAX=0 表示不截断（日志可能极大）。"""
+    try:
+        return int(os.environ.get("MIGU_DEBUG_HTTP_MAX", "12000"))
+    except ValueError:
+        return 12000
+
+
+def _emit_http_debug_block(heading, text):
+    if not _http_debug_enabled():
+        return
+    total = len(text)
+    mx = _http_debug_max_chars()
+    if mx <= 0 or total <= mx:
+        print(f"========== {heading} (长度 {total}) ==========\n{text}\n==========\n")
+    else:
+        print(
+            f"========== {heading} (长度 {total}，已截断至 {mx}；设 MIGU_DEBUG_HTTP_MAX=0 可全量) ==========\n"
+            f"{text[:mx]}\n...(截断)\n==========\n"
+        )
+
+
+def get_content(pid, rate_type=None, http_debug_label=None):
+    """
+    请求咪咕 playurl。rate_type 为 None 时：广东卫视默认 2，其余默认 3。
+    传入具体档位则强制使用该 rateType（用于失败后的清晰度回退）。
+    """
     _headers = {
         "accept": "application/json, text/plain, */*",
         "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
@@ -120,13 +279,15 @@ def get_content(pid):
         "Referrer-Policy": "strict-origin-when-cross-origin"
     }
 
-    # ==================== 广东卫视特殊处理 ====================
-    if pid == "608831231":
-        rateType = "2"   # 广东卫视使用 rateType=2 更稳定
-        print(f"[特殊处理] 广东卫视 使用 rateType=2")
+    # ==================== 默认清晰度 ====================
+    if rate_type is not None:
+        rateType = str(rate_type)
+    elif pid == "608831231":
+        rateType = "2"   # 广东卫视默认 rateType=2 更稳定
+        print("[特殊处理] 广东卫视 使用 rateType=2")
     else:
-        rateType = "3"   # 其他频道强制 720P（非会员最高清晰度）
-    # =========================================================
+        rateType = "3"   # 其它频道默认 720P（非会员常用档位）
+    # ====================================================
 
     client_id = md5(str(int(time.time() * 1000)))
 
@@ -175,109 +336,81 @@ def get_content(pid):
                 "description": ""
             })
 
-    body = {
-        "option": {
-            "scene": "http_request",
-            "lang": "zh-cn",
-            "globals": {},
-            "project": {
-                "request": {
-                    "header": {"parameter": header_parameter},
-                    "query": {"parameter": query_parameter},
-                    "body": {"parameter": []},
-                    "cookie": {"parameter": []},
-                    "auth": {"type": "noauth"},
-                    "pre_tasks": [],
-                    "post_tasks": []
-                }
-            },
-            "env": {
-                "env_id": "1",
-                "env_name": "默认环境",
-                "env_pre_url": "",
-                "env_pre_urls": {
-                    "1": {"server_id": "1", "name": "默认服务", "sort": 1000, "uri": ""},
-                    "default": {"server_id": "1", "name": "默认服务", "sort": 1000, "uri": ""}
-                },
-                "environment": {}
-            },
-            "cookies": {"switch": 1, "data": []},
-            "system_configs": {
-                "send_timeout": 0,
-                "auto_redirect": -1,
-                "max_redirect_time": 5,
-                "auto_gen_mock_url": -1,
-                "request_param_auto_json": -1,
-                "proxy": {
-                    "type": 2,
-                    "envfirst": 1,
-                    "bypass": [],
-                    "protocols": ["http"],
-                    "auth": {"authenticate": -1, "host": "", "username": "", "password": ""}
-                },
-                "ca_cert": {"open": -1, "path": "", "base64": ""},
-                "client_cert": {}
-            },
-            "custom_functions": {},
-            "collection": [
-                {
-                    "target_id": "3c5fd6a9786002",
-                    "target_type": "api",
-                    "parent_id": "0",
-                    "name": "MIGU",
-                    "request": {
-                        "auth": {"type": "inherit"},
-                        "body": {
-                            "mode": "None",
-                            "parameter": [],
-                            "raw": "",
-                            "raw_parameter": [],
-                            "raw_schema": {"type": "object"},
-                            "binary": None
-                        },
-                        "pre_tasks": [],
-                        "post_tasks": [],
-                        "header": {"parameter": header_parameter},
-                        "query": {"parameter": query_parameter, "query_add_equal": 1},
-                        "cookie": {"parameter": [], "cookie_encode": 1},
-                        "restful": {"parameter": []},
-                        "tabs_default_active_key": "query"
-                    },
-                    "parents": [],
-                    "method": "GET",
-                    "protocol": "http/1.1",
-                    "url": URL,
-                    "pre_url": ""
-                }
-            ],
-            "database_configs": {}
-        },
-        "test_events": [
-            {
-                "type": "api",
-                "data": {
-                    "target_id": "3c5fd6a9786002",
-                    "project_id": "57a21612a051000",
-                    "parent_id": "0",
-                    "target_type": "api"
-                }
-            }
-        ]
-    }
+    body = _build_apipost_body(header_parameter, query_parameter, URL)
 
     body_str = json.dumps(body, separators=(",", ":"))
     proxy_url = "https://workspace.apipost.net/proxy/v2/http"
 
-    resp = requests.post(proxy_url, headers=_headers, data=body_str, timeout=15)
+    resp = _get_http_session().post(proxy_url, headers=_headers, data=body_str, timeout=15)
     
     try:
         result = resp.json()
         response_body = result["data"]["data"]["response"]["body"]
-        return json.loads(response_body)
+        resp_obj = json.loads(response_body)
     except Exception as e:
         print(f"Apipost 返回解析失败: {e}")
         print("原始响应:", resp.text[:500])
+        if _http_debug_enabled():
+            _emit_http_debug_block(
+                f"Apipost 原始 HTTP 文本 (status={resp.status_code})",
+                resp.text or "",
+            )
         raise
+
+    if _http_debug_enabled():
+        tag = http_debug_label or pid
+        req_lines = [
+            f"频道标识: {tag}  pID={pid}  rateType={rateType}",
+            f"咪咕 playurl: {URL}",
+            f"经 Apipost 代理: POST {proxy_url}",
+            f"Apipost 请求体 JSON 长度: {len(body_str)} 字节",
+        ]
+        if os.environ.get("MIGU_DEBUG_HTTP_FULL", "").strip().lower() in ("1", "true", "yes", "on"):
+            req_lines.append("--- Apipost 请求体 JSON（可能含 token，勿公开日志）---")
+            req_lines.append(body_str)
+        _emit_http_debug_block(f"[playurl] 请求摘要 / 频道 [{tag}]", "\n".join(req_lines))
+        _emit_http_debug_block(
+            f"[playurl] 解析后的业务响应 / 频道 [{tag}]",
+            json.dumps(resp_obj, ensure_ascii=False, indent=2),
+        )
+
+    return resp_obj
+
+
+def get_content_with_fallback(pid, channel_name=""):
+    """
+    部分卫视在 rateType=3 时偶发无 url；按清晰度回退并重试同一档位，提高成功率。
+    广东卫视优先 2，其余优先 3。
+    """
+    if pid == "608831231":
+        rate_candidates = ["2", "3", "1"]
+    else:
+        rate_candidates = ["3", "2", "1"]
+
+    last_resp = None
+    last_err = None
+    for ri, rt in enumerate(rate_candidates):
+        for attempt in range(2):
+            try:
+                time.sleep(0.08 + random.random() * 0.22)
+                resp_data = get_content(pid, rate_type=rt, http_debug_label=channel_name or None)
+                last_resp = resp_data
+                raw_url, _ = _play_url_from_response(resp_data)
+                if raw_url:
+                    if ri > 0 or attempt > 0:
+                        tag = channel_name or pid
+                        print(f"[回退/重试] 频道 [{tag}] rateType={rt} 第{attempt + 1}次 → 拿到播放地址")
+                    return resp_data
+            except Exception as e:
+                last_err = e
+                tag = channel_name or pid
+                print(f"[重试] 频道 [{tag}] rateType={rt} 第{attempt + 1}次 请求异常: {e}")
+            time.sleep(0.35 + random.random() * 0.35)
+    if last_resp is not None:
+        tag = channel_name or pid
+        print(f"--- playurl 仍无地址（分类参考）频道 [{tag}] pID={pid} 最后一次响应 ---")
+        print(json.dumps(last_resp, ensure_ascii=False, indent=2))
+    raise ValueError("接口未返回播放地址 url（已尝试 rateType 回退与重试）") from last_err
 
 
 def getddCalcu720p(url, pID):
@@ -300,9 +433,8 @@ def getddCalcu720p(url, pID):
 
 def append_All_Live(live, flag, data):
     try:
-        respData = get_content(data["pID"])
-        url_info = (respData.get("body") or {}).get("urlInfo") or {}
-        raw_url = url_info.get("url")
+        respData = get_content_with_fallback(data["pID"], data.get("name", ""))
+        raw_url, url_info = _play_url_from_response(respData)
         if not raw_url:
             raise ValueError("接口未返回播放地址 url")
         real_pid = respData.get("body", {}).get("content", {}).get("contId", data["pID"])
@@ -323,7 +455,13 @@ def append_All_Live(live, flag, data):
 def update(live, url):
     global All_Live
     pool = ThreadPoolExecutor(thread_mum)
-    response = requests.get(url, headers=headers).json()
+    resp = _get_http_session().get(url, headers=headers, timeout=15)
+    response = resp.json()
+    if _http_debug_enabled():
+        _emit_http_debug_block(
+            f"[节目单] GET {url}  status={resp.status_code}  分类={live}",
+            json.dumps(response, ensure_ascii=False, indent=2),
+        )
     dataList = response["body"]["dataList"]
     for data in dataList:
         if data["pID"] in PID_NOT:
@@ -336,17 +474,21 @@ def update(live, url):
 
 
 def main():
-    writefile(path,
-              r'#EXTM3U x-tvg-url="https://cdn.jsdelivr.net/gh/develop202/migu_video/playback.xml,https://ghfast.top/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://hk.gh-proxy.org/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://develop202.github.io/migu_video/playback.xml,https://raw.githubusercontents.com/develop202/migu_video/refs/heads/main/playback.xml" catchup="append" catchup-source="&playbackbegin=${(b)yyyyMMddHHmmss}&playbackend=${(e)yyyyMMddHHmmss}"' + "\n")
-    
+    header = (
+        r'#EXTM3U x-tvg-url="https://cdn.jsdelivr.net/gh/develop202/migu_video/playback.xml,https://ghfast.top/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://hk.gh-proxy.org/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml,https://develop202.github.io/migu_video/playback.xml,https://raw.githubusercontents.com/develop202/migu_video/refs/heads/main/playback.xml" catchup="append" catchup-source="&playbackbegin=${(b)yyyyMMddHHmmss}&playbackend=${(e)yyyyMMddHHmmss}"'
+        + "\n"
+    )
+
     for live in lives:
         print(f"\n分类 ----- [{live}] ----- 开始更新...")
         url = f'https://program-sc.miguvideo.com/live/v2/tv-data/{LIVE[live]}'
         update(live, url)
     
+    chunks = []
     for content in All_Live:
         if content:
-            appendfile(path, content)
+            chunks.append(content)
+    writefile(path, header + "".join(chunks))
     
     print("\n全部更新完成！m3u 文件已生成：", path)
 
