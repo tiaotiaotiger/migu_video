@@ -42,6 +42,7 @@ jobs:
             echo "当前为上海时间 ${H} 点（凌晨 1–5 点），跳过抓取与提交。"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "当前为上海时间 ${H} 点（不在凌晨 1–5 点间），执行抓取与提交。"
           fi
 
       - name: Install Dependencies
