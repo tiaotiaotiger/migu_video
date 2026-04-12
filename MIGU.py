@@ -439,8 +439,8 @@ def get_content_with_fallback(pid, channel_name=""):
             time.sleep(0.35 + random.random() * 0.35)
     if last_resp is not None:
         tag = channel_name or pid
-        print(f"--- playurl 仍无地址（分类参考）频道 [{tag}] pID={pid} 最后一次响应 ---")
-        print(json.dumps(last_resp, ensure_ascii=False, indent=2))
+        #print(f"--- playurl 仍无地址（分类参考）频道 [{tag}] pID={pid} 最后一次响应 ---")
+        #print(json.dumps(last_resp, ensure_ascii=False, indent=2))
     raise ValueError("接口未返回播放地址 url（已尝试 rateType 回退与重试）") from last_err
 
 
