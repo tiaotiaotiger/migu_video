@@ -1,6 +1,8 @@
 name: workflow-task
 
 on: 
+  # cron 始终按 UTC；列表里的「开始时间」是实际排队到 runner 的时刻。
+  # GitHub 在负载高时可能把 schedule 推迟数分钟到数小时（官方文档说明），因此间隔看起来会不均匀。
   schedule: 
     - cron: '11 * * * *'
   workflow_dispatch:
@@ -14,12 +16,16 @@ concurrency:
   
 jobs:
   main:
-    name: Fetch And Exec Job
+    name: Fetch And Modify
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
       ONLY_UPDATE_MIGU: false
+      # MIGU.py：设为 "1" 时在日志中打印每个频道的节目单/playurl 请求与解析后响应（便于排查）；默认 "0" 避免日志膨胀。
+      # 勿长期开启；勿设 MIGU_DEBUG_HTTP_FULL=1 于公开仓库（Apipost 请求体含 token）。
+      MIGU_DEBUG_HTTP: "0"
+      MIGU_DEBUG_HTTP_MAX: "2000"
 
     steps: 
       - name: Checkout code
