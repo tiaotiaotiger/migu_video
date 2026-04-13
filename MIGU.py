@@ -427,8 +427,8 @@ def get_content_with_fallback(pid, channel_name=""):
                     return resp_data
                 if _is_playurl_denied_by_policy(resp_data):
                     tag = channel_name or pid
-                    print(f"--- playurl 策略拒绝 频道 [{tag}] pID={pid}（不再换 rateType 重试）---")
-                    print(json.dumps(last_resp, ensure_ascii=False, indent=2))
+                    #print(f"--- playurl 策略拒绝 频道 [{tag}] pID={pid}（不再换 rateType 重试）---")
+                    #print(json.dumps(last_resp, ensure_ascii=False, indent=2))
                     raise PlayurlDenied(_format_playurl_denial(resp_data))
             except PlayurlDenied:
                 raise
