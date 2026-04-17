@@ -31,18 +31,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # 上海时间 00:00–05:59 不抓取、不提交（schedule / 手动 / dispatch 均生效）
+      # 上海时间 00:00–04:59 不抓取、不提交（schedule / 手动 / dispatch 均生效）
       - name: Check Shanghai quiet hours
         id: shanghai_quiet
         run: |
           H=$(TZ=Asia/Shanghai date +%H)
           H=$((10#$H))
-          if [[ $H -ge 0 && $H -lt 6 ]]; then
+          if [[ $H -ge 0 && $H -le 4 ]]; then
             echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "当前为上海时间 ${H} 点（凌晨 0–5 点），跳过抓取与提交。"
+            echo "当前为上海时间 ${H} 点（凌晨 0–4 点），跳过抓取与提交。"
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "当前为上海时间 ${H} 点（不在凌晨 0–5 点间），执行抓取与提交。"
+            echo "当前为上海时间 ${H} 点（不在凌晨 0–4 点间），执行抓取与提交。"
           fi
 
       - name: Install Dependencies
