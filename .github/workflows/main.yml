@@ -2,7 +2,7 @@ name: workflow-task-delay
 
 on: 
   schedule: 
-    - cron: '32 * * * *'
+    - cron: '38 * * * *'
   workflow_dispatch:
 
     
