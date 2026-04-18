@@ -1,13 +1,10 @@
-name: workflow-task
+name: workflow-task-delay
 
 on: 
-  # cron 始终按 UTC；列表里的「开始时间」是实际排队到 runner 的时刻。
-  # GitHub 在负载高时可能把 schedule 推迟数分钟到数小时（官方文档说明），因此间隔看起来会不均匀。
   schedule: 
-    - cron: '11 * * * *'
+    - cron: '28 * * * *'
   workflow_dispatch:
-  repository_dispatch: 
-    types: [tvcron]
+
     
 # 防止并发：如果新任务触发，取消掉正在运行的旧任务
 concurrency:
@@ -22,35 +19,47 @@ jobs:
       contents: write
     env:
       ONLY_UPDATE_MIGU: false
-      # MIGU.py：设为 "1" 时在日志中打印每个频道的节目单/playurl 请求与解析后响应（便于排查）；默认 "0" 避免日志膨胀。
-      # 勿长期开启；勿设 MIGU_DEBUG_HTTP_FULL=1 于公开仓库（Apipost 请求体含 token）。
-      MIGU_DEBUG_HTTP: "0"
-      MIGU_DEBUG_HTTP_MAX: "2000"
 
     steps: 
       - name: Checkout code
         uses: actions/checkout@v5
 
-      # 上海时间 00:00–04:59 不抓取、不提交（schedule / 手动 / dispatch 均生效）
-      - name: Check Shanghai quiet hours
-        id: shanghai_quiet
-        run: |
-          H=$(TZ=Asia/Shanghai date +%H)
-          H=$((10#$H))
-          if [[ $H -ge 0 && $H -le 4 ]]; then
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-            echo "当前为上海时间 ${H} 点（凌晨 0–4 点），跳过抓取与提交。"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            echo "当前为上海时间 ${H} 点（不在凌晨 0–4 点间），执行抓取与提交。"
-          fi
-
       - name: Install Dependencies
-        if: steps.shanghai_quiet.outputs.skip != 'true'
         run: pip install requests
 
+      # --- 第一次执行：初始任务 ---
       - name: Initial Run
-        if: steps.shanghai_quiet.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash ./run_test.sh
+
+      # --- 延时逻辑：在  23, 00, 01, 02 时段进行 4 次整点追踪 ---
+      - name: Precision Hourly Sync
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT_HOUR=$(TZ=Asia/Shanghai date +%H)
+          
+          if [[ "$CURRENT_HOUR" == "23" || "$CURRENT_HOUR" == "00" || "$CURRENT_HOUR" == "01" || "$CURRENT_HOUR" == "02" ]]; then
+            echo "当前处于核心时段 ($CURRENT_HOUR 点)，启动 3 小时整点追踪..."
+            
+            for i in {1..4}; do
+              # 计算到下一个整点 (xx:00:10) 的秒数
+              MIN=$(date -u +"%M")
+              SEC=$(date -u +"%S")
+              SLEEP_SECONDS=$(( 3600 - (10#$MIN * 60 + 10#$SEC) + 10 ))
+              
+              echo "等待 $SLEEP_SECONDS 秒至下一个整点..."
+              sleep $SLEEP_SECONDS
+              
+              echo "--- 开始第 $i 次整点同步 ---"
+              # 每次循环前拉取最新脚本代码，确保逻辑是最新的
+              git pull origin main --rebase || true
+              
+              # 执行脚本
+              bash ./run_test.sh
+            done
+          else
+            echo "非核心时段，无需延时。"
+          fi
