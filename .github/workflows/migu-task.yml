@@ -1,4 +1,4 @@
-name: workflow-task-delay
+name: migu-task
 
 on: 
   schedule: 
