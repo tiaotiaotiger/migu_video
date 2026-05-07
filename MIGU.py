@@ -56,8 +56,11 @@ LIVE = {
 PID_NOT=['608807419', '608807416', '609006446', '609006476', '609154345', '609006450', '884121956', '708869532']
 
 path = 'mig.m3u'
+channels_pid_json = "channels_pid.json"
 appVersion = "2600034600"
 All_Live = []
+# 央视、卫视：频道显示名 -> 直播 pID（与 mig.m3u 中 tvg-name / tvg-id 一致；供 EPG.py 使用）
+channel_pid_map = {}
 
 # ---------- HTTP：Session 复用连接（program-sc + Apipost）----------
 _http_session = None
@@ -194,6 +197,11 @@ def format_date_ymd():
 def writefile(path, content):
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
+
+
+def write_channels_pid_json(out_path, mapping):
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(mapping, f, ensure_ascii=False, indent=4)
 
 
 def md5(text):
@@ -476,7 +484,7 @@ def append_All_Live(live, flag, data):
         pics = data.get("pics") or {}
         logo = pics.get("highResolutionH", "")
 
-        content = f'#EXTINF:-1 tvg-id="{data["name"]}" tvg-name="{data["name"]}" tvg-logo="{logo}" group-title="{live}",{data["name"]}\n{playurl}\n'
+        content = f'#EXTINF:-1 tvg-id="{data["pID"]}" tvg-name="{data["name"]}" tvg-logo="{logo}" group-title="{live}",{data["name"]}\n{playurl}\n'
         All_Live[flag] = content
         print(f'频道 [{data["name"]}] rateType={rate} → 更新成功')
     except Exception as e:
@@ -484,7 +492,7 @@ def append_All_Live(live, flag, data):
 
 
 def update(live, url):
-    global All_Live
+    global All_Live, channel_pid_map
     pool = ThreadPoolExecutor(thread_mum)
     resp = _get_http_session().get(url, headers=headers, timeout=15)
     response = resp.json()
@@ -497,6 +505,7 @@ def update(live, url):
     for data in dataList:
         if data["pID"] in PID_NOT:
             continue
+        channel_pid_map[data["name"]] = data["pID"]
         # 必须用当前列表长度作为下标：跳过 PID_NOT 时 enumerate 的下标会与 append 次数不一致
         idx = len(All_Live)
         All_Live.append("")
@@ -505,8 +514,12 @@ def update(live, url):
 
 
 def main():
+    global All_Live, channel_pid_map
+    All_Live = []
+    channel_pid_map.clear()
+
     header = (
-        r'#EXTM3U x-tvg-url="https://ghfast.top/raw.githubusercontent.com/develop202/migu_video/refs/heads/main/playback.xml" catchup="append" catchup-source="&playbackbegin=${(b)yyyyMMddHHmmss}&playbackend=${(e)yyyyMMddHHmmss}"'
+        r'#EXTM3U x-tvg-url="https://gh-proxy.org/https://raw.githubusercontent.com/tiaotiaotiger/migu_video/refs/heads/main/epg.xml" catchup="append" catchup-source="&playbackbegin=${(b)yyyyMMddHHmmss}&playbackend=${(e)yyyyMMddHHmmss}"'
         + "\n"
     )
 
@@ -522,6 +535,9 @@ def main():
     writefile(path, header + "".join(chunks))
     
     print("\n全部更新完成！m3u 文件已生成：", path)
+
+    write_channels_pid_json(channels_pid_json, channel_pid_map)
+    print("频道映射已写入：", channels_pid_json, "（共", len(channel_pid_map), "条）")
 
 
 if __name__ == "__main__":

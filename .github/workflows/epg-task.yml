@@ -1,0 +1,42 @@
+# 每日在北京时间 0 点～5 点之间至少生成并提交一次 epg.xml
+# （cron 为 UTC：北京时间 00:00–04:59 对应 UTC 前一日 16:00–20:59）
+name: epg-task
+
+on:
+  schedule:
+    # UTC 18:15 ≈ 北京时间 次日 02:15，落在凌晨 0–5 点窗口内
+    - cron: '15 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: epg-task
+  cancel-in-progress: true
+
+jobs:
+  epg:
+    name: Generate EPG
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run EPG.py
+        run: python EPG.py
+
+      - name: Commit and push
+        run: |
+          git config user.email "github@github.com"
+          git config user.name "Github Actions"
+          git add epg.xml
+          if git diff --cached --quiet; then
+            echo "epg.xml 无变更，跳过提交。"
+          else
+            git commit -m "Update: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S')"
+            git push origin main
+          fi
