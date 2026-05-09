@@ -567,65 +567,98 @@
     <channel id="CCTV6电影">
         <display-name lang="zh">CCTV6电影</display-name>
     </channel>
-    <programme channel="CCTV6电影" start="20260508230100 +0800" stop="20260509000900 +0800">
+    <programme channel="CCTV6电影" start="20260508230100 +0800" stop="20260509000400 +0800">
         <title lang="zh">铁血阳泉（下）</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509000900 +0800" stop="20260509014000 +0800">
+    <programme channel="CCTV6电影" start="20260509000400 +0800" stop="20260509001100 +0800">
+        <title lang="zh">光影星播客</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509001100 +0800" stop="20260509014200 +0800">
         <title lang="zh">我爱长发飘飘</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509014000 +0800" stop="20260509032800 +0800">
+    <programme channel="CCTV6电影" start="20260509014200 +0800" stop="20260509033000 +0800">
         <title lang="zh">十二公民</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509032800 +0800" stop="20260509051200 +0800">
+    <programme channel="CCTV6电影" start="20260509033000 +0800" stop="20260509051400 +0800">
         <title lang="zh">美味情歌</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509051200 +0800" stop="20260509071000 +0800">
+    <programme channel="CCTV6电影" start="20260509051400 +0800" stop="20260509063500 +0800">
         <title lang="zh">震耳欲聋</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509071000 +0800" stop="20260509082200 +0800">
-        <title lang="zh">长津湖之水门桥（上）</title>
+    <programme channel="CCTV6电影" start="20260509063500 +0800" stop="20260509090200 +0800">
+        <title lang="zh">长津湖之水门桥</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509082200 +0800" stop="20260509094400 +0800">
-        <title lang="zh">长津湖之水门桥（下）</title>
+    <programme channel="CCTV6电影" start="20260509090200 +0800" stop="20260509090700 +0800">
+        <title lang="zh">光影星播客</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509094400 +0800" stop="20260509112200 +0800">
+    <programme channel="CCTV6电影" start="20260509090700 +0800" stop="20260509103500 +0800">
         <title lang="zh">夏日友晴天</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509112200 +0800" stop="20260509144500 +0800">
+    <programme channel="CCTV6电影" start="20260509103500 +0800" stop="20260509104200 +0800">
+        <title lang="zh">光影星播客</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509104200 +0800" stop="20260509104500 +0800">
+        <title lang="zh">MV</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509104500 +0800" stop="20260509140200 +0800">
         <title lang="zh">悲惨世界</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509144500 +0800" stop="20260509150600 +0800">
-        <title lang="zh">《1905影视频》2026-019</title>
+    <programme channel="CCTV6电影" start="20260509140200 +0800" stop="20260509140900 +0800">
+        <title lang="zh">光影星播客</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509150600 +0800" stop="20260509165100 +0800">
+    <programme channel="CCTV6电影" start="20260509140900 +0800" stop="20260509143000 +0800">
+        <title lang="zh">1905影视频(19)</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509143000 +0800" stop="20260509160700 +0800">
         <title lang="zh">生死96小时</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509165100 +0800" stop="20260509183600 +0800">
+    <programme channel="CCTV6电影" start="20260509160700 +0800" stop="20260509161400 +0800">
+        <title lang="zh">光影星播客</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509161400 +0800" stop="20260509165100 +0800">
+        <title lang="zh">我和我的父辈-乘风</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509165100 +0800" stop="20260509181700 +0800">
         <title lang="zh">终极代码</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509183600 +0800" stop="20260509202200 +0800">
+    <programme channel="CCTV6电影" start="20260509181700 +0800" stop="20260509182200 +0800">
+        <title lang="zh">院线上新:五一档</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509182200 +0800" stop="20260509183600 +0800">
+        <title lang="zh">光影星播客</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509183600 +0800" stop="20260509201300 +0800">
         <title lang="zh">辣警狂花1</title>
     </programme>
-    <programme channel="CCTV6电影" start="20260509202200 +0800" stop="20260509220000 +0800">
+    <programme channel="CCTV6电影" start="20260509201300 +0800" stop="20260509202200 +0800">
+        <title lang="zh">光影星播客</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509202200 +0800" stop="20260509215100 +0800">
         <title lang="zh">辣警狂花2</title>
     </programme>
+    <programme channel="CCTV6电影" start="20260509215100 +0800" stop="20260509215600 +0800">
+        <title lang="zh">院线上新:五一档</title>
+    </programme>
+    <programme channel="CCTV6电影" start="20260509215600 +0800" stop="20260509220000 +0800">
+        <title lang="zh">光影星播客</title>
+    </programme>
     <programme channel="CCTV6电影" start="20260509220000 +0800" stop="20260509221800 +0800">
-        <title lang="zh">中国电影报道2026-129</title>
+        <title lang="zh">中国电影报道(129)</title>
     </programme>
     <programme channel="CCTV6电影" start="20260509221800 +0800" stop="20260509222400 +0800">
-        <title lang="zh">中国福利彩票阳光开奖2026-05-09</title>
+        <title lang="zh">中国福利彩票阳光开奖</title>
     </programme>
     <programme channel="CCTV6电影" start="20260509222400 +0800" stop="20260509223300 +0800">
-        <title lang="zh">佳片有约周六版2026-019</title>
+        <title lang="zh">佳片有约(19)</title>
     </programme>
     <programme channel="CCTV6电影" start="20260509223300 +0800" stop="20260509230000 +0800">
-        <title lang="zh">但丁密码（上）</title>
+        <title lang="zh">但丁密码(上)</title>
     </programme>
     <programme channel="CCTV6电影" start="20260509230000 +0800" stop="20260509230100 +0800">
-        <title lang="zh">中国体育彩票阳光开奖2026-05-09</title>
+        <title lang="zh">中国体育彩票阳光开奖</title>
     </programme>
     <programme channel="CCTV6电影" start="20260509230100 +0800" stop="20260510004100 +0800">
-        <title lang="zh">但丁密码（下）</title>
+        <title lang="zh">但丁密码(下)</title>
     </programme>
     <channel id="CCTV7国防军事">
         <display-name lang="zh">CCTV7国防军事</display-name>
@@ -1212,10 +1245,10 @@
     <programme channel="CCTV13新闻" start="20260509100000 +0800" stop="20260509120000 +0800">
         <title lang="zh">新闻直播间</title>
     </programme>
-    <programme channel="CCTV13新闻" start="20260509120000 +0800" stop="20260509123300 +0800">
+    <programme channel="CCTV13新闻" start="20260509120000 +0800" stop="20260509123500 +0800">
         <title lang="zh">新闻30分</title>
     </programme>
-    <programme channel="CCTV13新闻" start="20260509123300 +0800" stop="20260509130000 +0800">
+    <programme channel="CCTV13新闻" start="20260509123500 +0800" stop="20260509130000 +0800">
         <title lang="zh">军情时间到</title>
     </programme>
     <programme channel="CCTV13新闻" start="20260509130000 +0800" stop="20260509140000 +0800">
