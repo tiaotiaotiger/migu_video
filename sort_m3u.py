@@ -74,12 +74,14 @@ def is_cctv_channel(extinf):
 
 
 def update_group_title(extinf, new_group):
-    """正确插入 group-title"""
-    extinf = re.sub(r'\s*group-title="[^"]*"', '', extinf)
+    """正确插入 group-title（属性之间用空格，仅最后一个逗号分隔属性区与显示名）"""
+    # 去掉已有 group-title 及其前后多余逗号/空白，避免出现 ,,group-title=
+    extinf = re.sub(r',?\s*group-title="[^"]*"\s*,?', ',', extinf)
+    extinf = re.sub(r',\s*,+', ',', extinf)  # 合并连续逗号
     if ',' in extinf:
         parts = extinf.rsplit(',', 1)
         if len(parts) == 2:
-            extinf = f'{parts[0].strip()},group-title="{new_group}",{parts[1].strip()}'
+            extinf = f'{parts[0].rstrip()} group-title="{new_group}",{parts[1].strip()}'
     return extinf.strip()
 
 
@@ -113,7 +115,7 @@ def main():
     with open(input_file, "r", encoding="utf-8") as f:
         content = f.read()
 
-    header_match = re.match(r'(#EXTM3U.*?)(\n#EXTINF:|$)', content, re.DOTALL | re.IGNORECASE)
+    header_match = re.match(r'(#EXTM3U[^\n]*)', content, re.IGNORECASE)
     header = header_match.group(1).strip() if header_match else "#EXTM3U"
 
     channels = parse_m3u(content)
@@ -131,17 +133,19 @@ def main():
 
     # ==================== 生成完整版（频道名不动） ====================
     # 顺序与去重后的 mig.m3u 一致，不按 priority/sort_key 重排；分组仍用 get_group_priority_and_key
+    # 格式：分类间空一行；同一分类下 #EXTINF + url 连续、节目之间无空行
     with open(output_full, "w", encoding="utf-8") as f:
-        f.write(header + "\n\n")
+        f.write(header + "\n")
         current_group = None
         for extinf, url in unique_channels:
             _, group = get_group_priority_and_key(extinf)
             if group != current_group:
-                f.write(f"# ================================== {group} ==================================\n\n")
+                # 分类之间空一行（首个分类前也空一行，与 header 隔开）
+                f.write(f"\n# ================================== {group} ==================================\n")
                 current_group = group
             new_extinf = update_group_title(extinf, group)
             f.write(new_extinf + "\n")
-            f.write(url + "\n\n")
+            f.write(url + "\n")
 
     # ==================== 生成只包含央视的文件（简化频道名） ====================
     # 与 mig.m3u 中首次出现的顺序一致（仅 CCTV1~17），不做 CCTV 序号重排
@@ -156,7 +160,7 @@ def main():
     #         f.write(new_extinf + "\n")
     #         f.write(url + "\n\n")
 
-    print(f"✅ 处理完成！")
+    print("处理完成。")
     print(f" 输入频道数：{len(channels)}")
     print(f" 去重后频道数：{len(unique_channels)}")
     print(f" 央视 CCTV 频道数：{len(cctv_ordered)}")
