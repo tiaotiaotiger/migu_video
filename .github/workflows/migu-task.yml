@@ -1,73 +1,53 @@
 name: migu-task
-
 on: 
-  schedule: 
-    - cron: '38 16 * * *'
+  #schedule: 
+    #- cron: 0 * * * *
   workflow_dispatch:
-
-    
-# 防止并发：如果新任务触发，取消掉正在运行的旧任务
-concurrency:
-  group: ${{ github.workflow }}
-  cancel-in-progress: true
-  
+  repository_dispatch: #允许外部触发,cf worker定时任务延迟在1分钟以内
+    types: [mgcron]
 jobs:
   main:
-    name: Fetch And Modify
+    name: update migu
     runs-on: ubuntu-latest
+    timeout-minutes: 15 # 总超时
     permissions:
-      contents: write
-    env:
-      ONLY_UPDATE_MIGU: false
-
+      contents: write  # 允许推送代码
     steps: 
-      - name: Checkout code
-        uses: actions/checkout@v5
-
-      - name: Install Dependencies
-        run: pip install requests
-
-      # --- 第一次执行：初始任务 ---
-      - name: Initial Run
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash ./run_test.sh
-
-      # --- 延时逻辑：在 UTC 23, 00, 01, 02（北京约 7–10 点）进行 4 次「每到 xx:30:10」同步---
-      - name: Precision Hourly Sync
-        if: success()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          CURRENT_HOUR=$(date -u +"%H")
+    - name: Checkout code
+      uses: actions/checkout@v7
+    - name: Setup Python
+      run: |
+          pip install requests futures
+    - name: fetch and modify with Retry
+      uses: nick-fields/retry@v4
+      with:
+        timeout_minutes: 5    # 单次尝试如果超过 5 分钟就判定为超时
+        max_attempts: 2       # 超时后重试 1 次 
+        retry_on: timeout     # 只有在超时的时候才触发重试
+        retry_wait_seconds: 30   # 每次重试之间的等待间隔 
+        command: |
+          python MIGU.py
+          python sort_m3u.py
           
-          if [[ "$CURRENT_HOUR" == "23" || "$CURRENT_HOUR" == "00" || "$CURRENT_HOUR" == "01" || "$CURRENT_HOUR" == "02" ]]; then
-            echo "当前处于核心时段 ($CURRENT_HOUR 点)，启动 3 轮 UTC 半点+10s (xx:30:10) 同步..."
-            
-            for i in {1..3}; do
-              # 睡到最近的 UTC xx:30:10（半点后错开 10 秒，减轻与整分整秒请求尖峰重叠）
-              MIN=$(date -u +"%M")
-              SEC=$(date -u +"%S")
-              ELAPSED=$(( 10#$MIN * 60 + 10#$SEC ))
-              HALF_MIN_SEC=1800
-              ALIGN_OFFSET=10
-              TARGET_IN_HOUR=$(( HALF_MIN_SEC + ALIGN_OFFSET ))
-              if [[ "$ELAPSED" -lt "$TARGET_IN_HOUR" ]]; then
-                SLEEP_SECONDS=$(( TARGET_IN_HOUR - ELAPSED ))
-              else
-                SLEEP_SECONDS=$(( 3600 - ELAPSED + TARGET_IN_HOUR ))
-              fi
+    - name: CommitAndPush
+      run: |
+        # 获取仓库名称（${VAR#*/} 是 Bash 的字符串操作，去掉 owner/ 前缀）
+        REPO_NAME="${GITHUB_REPOSITORY#*/}"
+        git config --global user.email "github@github.com"
+        git config --global user.name "Github Actions"
+        
+        # 克隆仓库（使用 HTTPS + TOKEN 避免权限问题）
+        git clone "https://${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+        cd "$REPO_NAME" || exit 1  # 强制失败时退出
 
-              echo "等待 $SLEEP_SECONDS 秒至下一个 UTC xx:30:${ALIGN_OFFSET}..."
-              sleep $SLEEP_SECONDS
-              
-              echo "--- 开始第 $i 次半点同步 ---"
-              # 每次循环前拉取最新脚本代码，确保逻辑是最新的
-              git pull origin main --rebase || true
-              
-              # 执行脚本
-              bash ./run_test.sh
-            done
-          else
-            echo "非核心时段，无需延时。"
-          fi
+        # 从上级目录移动文件到当前子目录
+        [ -f "../migu.m3u" ] && mv ../migu.m3u ./migu.m3u || true
+        [ -f "../channels_pid.json" ] && mv ../channels_pid.json ./channels_pid.json || true
+        
+        git add .
+        if git diff --cached --quiet; then
+          echo "No changes to commit."
+        else
+          git commit -m "Update: $(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M:%S')"
+          git push origin main
+        fi
