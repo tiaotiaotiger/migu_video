@@ -62,6 +62,51 @@ All_Live = []
 # 央视、卫视：频道显示名 -> 直播 pID（与 mig.m3u 中 tvg-name / tvg-id 一致；供 EPG.py 使用）
 channel_pid_map = {}
 
+# ---------- Apipost 凭证：优先读环境变量 / GitHub Secrets，勿把 token 写进仓库 ----------
+# 本地：$env:APIPOST_TOKEN="..." ；Actions：Settings → Secrets → 再在 workflow env 注入
+def _env(name, default=""):
+    return os.environ.get(name, default).strip()
+
+
+APIPOST_TOKEN = _env("APIPOST_TOKEN")
+APIPOST_CLIENT_ID = _env("APIPOST_CLIENT_ID")
+APIPOST_MACHINE = _env("APIPOST_MACHINE")
+APIPOST_WORKSPACE_ID = _env("APIPOST_WORKSPACE_ID")
+APIPOST_PROJECT_ID = _env("APIPOST_PROJECT_ID") or APIPOST_WORKSPACE_ID
+APIPOST_TARGET_ID = _env("APIPOST_TARGET_ID", "3c5fd6a9786002")
+APIPOST_COOKIE_EXTRA = _env("APIPOST_COOKIE_EXTRA")
+APIPOST_VERSION = _env("APIPOST_VERSION", "8.2.6")
+APIPOST_PROXY_URL = _env("APIPOST_PROXY_URL", "https://workspace.apipost.net/proxy/v2/http")
+
+
+def _apipost_referer():
+    wid = APIPOST_WORKSPACE_ID or "0"
+    return f"https://workspace.apipost.net/{wid}/apis"
+
+
+def _apipost_cookie():
+    parts = [f"apipost-token={APIPOST_TOKEN}"]
+    if APIPOST_COOKIE_EXTRA:
+        parts.append(APIPOST_COOKIE_EXTRA)
+    return "; ".join(parts)
+
+
+def _require_apipost_creds():
+    missing = [
+        k for k, v in (
+            ("APIPOST_TOKEN", APIPOST_TOKEN),
+            ("APIPOST_CLIENT_ID", APIPOST_CLIENT_ID),
+            ("APIPOST_MACHINE", APIPOST_MACHINE),
+            ("APIPOST_WORKSPACE_ID", APIPOST_WORKSPACE_ID),
+        ) if not v
+    ]
+    if missing:
+        raise RuntimeError(
+            "缺少 Apipost 环境变量: " + ", ".join(missing)
+            + "。请在本地设置或在 GitHub Actions Secrets + workflow env 中配置。"
+        )
+
+
 # ---------- HTTP：Session 复用连接（program-sc + Apipost）----------
 _http_session = None
 
@@ -101,7 +146,6 @@ _COLLECTION_REQUEST_STATIC_TAIL = {
 }
 
 _COLLECTION_ITEM_META = {
-    "target_id": "3c5fd6a9786002",
     "target_type": "api",
     "parent_id": "0",
     "name": "MIGU",
@@ -143,18 +187,6 @@ _STATIC_OPTION_SYSTEM_CONFIGS = {
 
 _STATIC_CUSTOM_FUNCTIONS = {}
 
-_STATIC_TEST_EVENTS = [
-    {
-        "type": "api",
-        "data": {
-            "target_id": "3c5fd6a9786002",
-            "project_id": "57a21612a051000",
-            "parent_id": "0",
-            "target_type": "api",
-        },
-    }
-]
-
 
 def _build_apipost_body(header_parameter, query_parameter, url):
     project_request = {
@@ -169,9 +201,21 @@ def _build_apipost_body(header_parameter, query_parameter, url):
     }
     collection_item = {
         **_COLLECTION_ITEM_META,
+        "target_id": APIPOST_TARGET_ID,
         "request": collection_request,
         "url": url,
     }
+    test_events = [
+        {
+            "type": "api",
+            "data": {
+                "target_id": APIPOST_TARGET_ID,
+                "project_id": APIPOST_PROJECT_ID or APIPOST_WORKSPACE_ID,
+                "parent_id": "0",
+                "target_type": "api",
+            },
+        }
+    ]
     return {
         "option": {
             "scene": "http_request",
@@ -185,7 +229,7 @@ def _build_apipost_body(header_parameter, query_parameter, url):
             "collection": [collection_item],
             "database_configs": {},
         },
-        "test_events": _STATIC_TEST_EVENTS,
+        "test_events": test_events,
     }
 
 
@@ -286,16 +330,17 @@ def get_content(pid, rate_type=None, http_debug_label=None):
     请求MG playurl。rate_type 为 None 时：广东卫视默认 2，其余默认 3。
     传入具体档位则强制使用该 rateType（用于失败后的清晰度回退）。
     """
+    _require_apipost_creds()
     _headers = {
         "accept": "application/json, text/plain, */*",
         "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-        "apipost-client-id": "8844aba6-ff71-4272-922e-3ac35106af4a",
+        "apipost-client-id": APIPOST_CLIENT_ID,
         "apipost-language": "zh-cn",
-        "apipost-machine": "13d46013f5c002",
+        "apipost-machine": APIPOST_MACHINE,
         "apipost-platform": "Win",
         "apipost-terminal": "web",
-        "apipost-token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7InVzZXJfaWQiOjQwMjE2NjM4Mzk1NTcwNTg1NiwidGltZSI6MTc3MzI5NDk5NywidXVpZCI6IjNiOGU5NjUwLTFkZDgtMTFmMS05NDdiLTUyZTY1ODM4NDNhOSJ9fQ.7MLfNWaF0zh4Y2LGFzJvyZ33qdtsLvcqhRpN82DaWHo",
-        "apipost-version": "8.2.6",
+        "apipost-token": APIPOST_TOKEN,
+        "apipost-version": APIPOST_VERSION,
         "cache-control": "no-cache",
         "content-type": "application/json",
         "pragma": "no-cache",
@@ -306,8 +351,8 @@ def get_content(pid, rate_type=None, http_debug_label=None):
         "sec-fetch-dest": "empty",
         "sec-fetch-mode": "cors",
         "sec-fetch-site": "same-origin",
-        "cookie": "apipost-token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwYXlsb2FkIjp7InVzZXJfaWQiOjQwMjE2NjM4Mzk1NTcwNTg1NiwidGltZSI6MTc3MzI5NDk5NywidXVpZCI6IjNiOGU5NjUwLTFkZDgtMTFmMS05NDdiLTUyZTY1ODM4NDNhOSJ9fQ.7MLfNWaF0zh4Y2LGFzJvyZ33qdtsLvcqhRpN82DaWHo; SERVERID=2861ec4778a7319ab8919bb9945cb13a|1773295099|1773295099; SERVERCORSID=2861ec4778a7319ab8919bb9945cb13a|1773295099|1773295099",
-        "Referer": "https://workspace.apipost.net/594c83209c88000/apis",
+        "cookie": _apipost_cookie(),
+        "Referer": _apipost_referer(),
         "Referrer-Policy": "strict-origin-when-cross-origin"
     }
 
@@ -371,7 +416,7 @@ def get_content(pid, rate_type=None, http_debug_label=None):
     body = _build_apipost_body(header_parameter, query_parameter, URL)
 
     body_str = json.dumps(body, separators=(",", ":"))
-    proxy_url = "https://workspace.apipost.net/proxy/v2/http"
+    proxy_url = APIPOST_PROXY_URL
 
     resp = _get_http_session().post(proxy_url, headers=_headers, data=body_str, timeout=15)
     

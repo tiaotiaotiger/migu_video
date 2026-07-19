@@ -15,6 +15,14 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v5
     - name: fetch and modify
+      env:
+        APIPOST_TOKEN: ${{ secrets.APIPOST_TOKEN }}
+        APIPOST_CLIENT_ID: ${{ secrets.APIPOST_CLIENT_ID }}
+        APIPOST_MACHINE: ${{ secrets.APIPOST_MACHINE }}
+        APIPOST_WORKSPACE_ID: ${{ secrets.APIPOST_WORKSPACE_ID }}
+        APIPOST_PROJECT_ID: ${{ secrets.APIPOST_PROJECT_ID }}
+        APIPOST_TARGET_ID: ${{ secrets.APIPOST_TARGET_ID }}
+        APIPOST_COOKIE_EXTRA: ${{ secrets.APIPOST_COOKIE_EXTRA }}
       run: |
           pip install requests futures
 
