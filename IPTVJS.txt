@@ -344,7 +344,6 @@ NewTV古装剧场,http://ott.mobaibox.com/PLTV/3/224/3221227542/index.m3u8
 超级飞侠,http://ott.mobaibox.com/PLTV/3/224/3221228539/index.m3u8
 小猪佩奇,http://ott.mobaibox.com/PLTV/3/224/3221228460/index.m3u8
 汪汪队,http://ott.mobaibox.com/PLTV/3/224/3221228463/index.m3u8
-熊出没,http://ott.mobaibox.com/PLTV/3/224/3221228536/index.m3u8
 奥特曼,http://ott.mobaibox.com/PLTV/3/224/3221228456/index.m3u8
 其他,#genre#
 咪咕音乐4K,http://ott.mobaibox.com/PLTV/1/224/3221228444/index.m3u8
